@@ -10,34 +10,35 @@ const star = {
     mass: 5000
 };
 
-// Fonction pour créer une particule avec coordonnée `z` et une profondeur de vue
+// Point de départ des particules
+let sourcePoint = { x: canvas.width / 2, y: canvas.height / 2 };
+const particles = [];
+
+// Fonction pour créer une particule avec coordonnée `z`
 function createParticle() {
     return {
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        z: Math.random() * 1000 + 100, // Distance initiale entre 100 et 1100
+        x: sourcePoint.x,
+        y: sourcePoint.y,
+        z: Math.random() * 1000 + 100, // Distance initiale
         radius: 5,
-        mass: 15,
+        mass: 5,
         velocityX: 0,
         velocityY: 0,
-        velocityZ: 0, // Vitesse sur l'axe z
+        velocityZ: 0,
         acceleration: 0.1
     };
 }
 
-// Propriétés de la particule
-let particle = createParticle(); 
-
-// Distance focale (détermine la profondeur de la perspective)
+// Distance focale (pour perspective)
 const focalLength = 500;
 
 // Fonction pour projeter les coordonnées 3D en 2D
 function project3D(x, y, z) {
-    const scale = focalLength / (focalLength + z); 
+    const scale = focalLength / (focalLength + z);
     return {
         x: canvas.width / 2 + (x - canvas.width / 2) * scale,
         y: canvas.height / 2 + (y - canvas.height / 2) * scale,
-        scale: scale // Échelle pour ajuster la taille en fonction de `z`
+        scale: scale
     };
 }
 
@@ -51,60 +52,70 @@ function drawStar() {
     ctx.closePath();
 }
 
-// Dessine la particule en 3D
-function drawParticle() {
+// Dessine une particule en 3D
+function drawParticle(particle) {
     const projected = project3D(particle.x, particle.y, particle.z);
-    ctx.beginPath();
-    ctx.arc(projected.x, projected.y, particle.radius * projected.scale, 0, Math.PI * 2);
-    ctx.fillStyle = 'red';
-    ctx.fill();
-    ctx.closePath();
+    const projectedRadius = particle.radius * projected.scale;
+
+    // Dessine la particule uniquement si elle est visible
+    if (projectedRadius > 0 && projected.scale > 0) {
+        ctx.beginPath();
+        ctx.arc(projected.x, projected.y, projectedRadius, 0, Math.PI * 2);
+        ctx.fillStyle = 'red';
+        ctx.fill();
+        ctx.closePath();
+    }
 }
 
-// Fonction de mise à jour de la simulation
+// Mise à jour de toutes les particules
+function updateParticles() {
+    particles.forEach((particle, index) => {
+        const dx = star.x - particle.x;
+        const dy = star.y - particle.y;
+        const dz = star.z - particle.z;
+        const distanceSquared = dx * dx + dy * dy + dz * dz;
+
+        // Calcul de la force gravitationnelle simplifiée
+        const force = (star.mass * particle.mass) / distanceSquared;
+        const distance = Math.sqrt(distanceSquared);
+        const forceX = (force * dx) / distance;
+        const forceY = (force * dy) / distance;
+        const forceZ = (force * dz) / distance;
+
+        // Mise à jour de la vitesse et de la position de la particule
+        particle.velocityX += forceX * particle.acceleration;
+        particle.velocityY += forceY * particle.acceleration;
+        particle.velocityZ += forceZ * particle.acceleration;
+
+        particle.x += particle.velocityX;
+        particle.y += particle.velocityY;
+        particle.z += particle.velocityZ;
+
+        // Limite `z` pour éviter que les particules s'approchent trop de la caméra
+        if (particle.z < 10) particle.z = 10;
+    });
+}
+
+// Fonction principale de la simulation
 function update() {
-    if (particle.z < 10) particle.z = 10; // Profondeur minimale
-    const dx = star.x - particle.x;
-    const dy = star.y - particle.y;
-    const dz = star.z - particle.z; // Calcul de la profondeur
-    const distanceSquared = dx * dx + dy * dy + dz * dz;
-
-    // Calcul de la force gravitationnelle (simplifié)
-    const force = (star.mass * particle.mass) / distanceSquared;
-    const distance = Math.sqrt(distanceSquared);
-    const forceX = (force * dx) / distance;
-    const forceY = (force * dy) / distance;
-    const forceZ = (force * dz) / distance;
-
-    // Mettre à jour la vitesse de la particule
-    particle.velocityX += forceX * particle.acceleration;
-    particle.velocityY += forceY * particle.acceleration;
-    particle.velocityZ += forceZ * particle.acceleration;
-
-    // Mettre à jour la position de la particule
-    particle.x += particle.velocityX;
-    particle.y += particle.velocityY;
-    particle.z += particle.velocityZ;
-    console.log(particle.velocityX, particle.velocityY, particle.velocityZ);
-    
-
-    // Effacer le canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Redessiner l'étoile et la particule
     drawStar();
-    drawParticle();
+    particles.forEach(drawParticle);
+    updateParticles();
 
-    // Appeler la fonction de mise à jour de manière répétée
     requestAnimationFrame(update);
 }
 
-// Démarrer la simulation
+// Initialiser la simulation
 update();
 
-// Réinitialiser la particule lorsque la barre d'espace est pressée
-document.addEventListener('keydown', (event) => {
-    if (event.key === ' ') {
-        particle = createParticle(); // Réinitialiser la particule
-    }
+// Générer une nouvelle source de particules avec clic
+canvas.addEventListener('click', () => {
+    particles.length = 0; // Réinitialise les anciennes particules
+    sourcePoint = {
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height
+    };
+    particles.push(createParticle()); // Ajouter une nouvelle particule
 });
